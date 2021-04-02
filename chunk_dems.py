@@ -28,9 +28,9 @@ from glob import glob
 import numpy as np
 from skimage.io import imsave, imread
 from scipy.signal import convolve2d
-from tkinter import filedialog
+from tkinter import filedialog, messagebox
 from tkinter import *
-import random, string
+import random, string, os
 
 # =========================================================
 def id_generator(size=6, chars=string.ascii_uppercase + string.digits):
@@ -64,87 +64,129 @@ tilesize = 1024 #
 
 #====================================================
 
-root = Tk()
-root.filename =  filedialog.askopenfilename(initialdir = "./",title = "Select file",filetypes = (("RGB ortho file","*.tif"),("all files","*.*")))
-rgb = root.filename
-root.withdraw()
+keep_going = True
+O = []; D = []; M = []
+while keep_going is True:
 
-root = Tk()
-root.filename =  filedialog.askopenfilename(initialdir = "./",title = "Select file",filetypes = (("DSM/DEM ortho file","*.tif"),("all files","*.*")))
-dem = root.filename
-root.withdraw()
+    root = Tk()
+    root.filename =  filedialog.askopenfilename(initialdir = "./",title = "Select file",filetypes = (("RGB ortho file","*.tif"),("all files","*.*")))
+    rgb = root.filename
+    root.withdraw()
+    O.append(rgb)
 
-root = Tk()
-root.filename =  filedialog.askopenfilename(initialdir = "./",title = "Select file",filetypes = (("Mask ortho file","*.tif"),("all files","*.*")))
-mask = root.filename
-root.withdraw()
+    root = Tk()
+    root.filename =  filedialog.askopenfilename(initialdir = "./",title = "Select file",filetypes = (("DSM/DEM ortho file","*.tif"),("all files","*.*")))
+    dem = root.filename
+    root.withdraw()
+    D.append(dem)
 
-with rasterio.open(mask) as src:
-    profile = src.profile
+    root = Tk()
+    root.filename =  filedialog.askopenfilename(initialdir = "./",title = "Select file",filetypes = (("Mask ortho file","*.tif"),("all files","*.*")))
+    mask = root.filename
+    root.withdraw()
+    M.append(mask)
 
-width = profile['width'] #21920
-height = profile['height'] #48990
-prefix = id_generator()+'_' #'example_'
+    Tk().withdraw()
+    keep_going = messagebox.askokcancel("","Would you like to chunk more data?")
 
-counter=0
-for i in range(0, width, tilesize):
-    for j in range(0, height, tilesize):
+try:
+    os.mkdir('dems')
+    os.mkdir('images')
+    os.mkdir('masks')
+    os.mkdir('stdev')
+except:
+    pass
 
-        window = rasterio.windows.Window(i,j,tilesize, tilesize)
+for rgb,dem,mask in zip(O,D,M):
+    print('Working on ortho %s |||| dem %s |||| and mask %s' % (rgb.split(os.sep)[-1], dem.split(os.sep)[-1], mask.split(os.sep)[-1]))
 
-        with rasterio.open(dem) as src: #rgb
-            profile = src.profile
-            subset = src.read(window=window)
-        # print((i,j))
-        #print(np.max(subset))
+    with rasterio.open(mask) as src:
+        profile = src.profile
 
-        orig = subset.squeeze()
-        # set nodata to zero
-        orig[orig==profile['nodata']] = 0
-        # apply stdev filter to get stdev raster
-        subset = std_convoluted(orig, 3)
-        # scale with exponential
-        subset = z_exp(subset,n=0.5)
-        #print(np.max(subset))
-        subset = np.squeeze(subset).T
+    width = profile['width'] #21920
+    height = profile['height'] #48990
+    prefix = id_generator()+'_' #'example_'
 
-        if np.max(orig)>0:
-            if counter<10:
-                imsave('stdev/'+prefix+'000000'+str(counter)+'_nir.png', subset.astype(np.uint8), compression=0, check_contrast=False)
-            elif counter<100:
-                imsave('stdev/'+prefix+'00000'+str(counter)+'_nir.png', subset.astype(np.uint8),  compression=0, check_contrast=False)
-            else:
-                imsave('stdev/'+prefix+'0000'+str(counter)+'_nir.png', subset.astype(np.uint8),  compression=0, check_contrast=False)
+    # i=0; j=13312
 
-            del subset
+    counter=0
+    for i in range(0, width, tilesize):
+        for j in range(0, height, tilesize):
 
-            with rasterio.open(mask) as src: #mask
-                #print(src.profile)
-                subset = src.read(window=window)
-            subset = np.squeeze(subset).T
-            subset[subset<0]=0
-            subset[subset>.5]=1
-            if counter<10:
-                imsave('masks/'+prefix+'000000'+str(counter)+'_mask.png', subset.astype(np.uint8),  compression=0, check_contrast=False)
-            elif counter<100:
-                imsave('masks/'+prefix+'00000'+str(counter)+'_mask.png', subset.astype(np.uint8),  compression=0, check_contrast=False)
-            else:
-                imsave('masks/'+prefix+'0000'+str(counter)+'_mask.png', subset.astype(np.uint8),  compression=0, check_contrast=False)
+            window = rasterio.windows.Window(i,j,tilesize, tilesize)
 
-            del subset
-
-            with rasterio.open(rgb) as src: #rgb
-                #print(src.profile)
+            with rasterio.open(dem) as src: #rgb
+                profile = src.profile
                 subset = src.read(window=window)
 
+            orig = subset.squeeze()
+            # set nodata to zero
+            orig[orig==profile['nodata']] = 0
+            # apply stdev filter to get stdev raster
+            subset = std_convoluted(orig, 3)
+            # scale with exponential
+            subset = z_exp(subset,n=0.5)
+            #print(np.max(subset))
             subset = np.squeeze(subset).T
-            if counter<10:
-                imsave('images/'+prefix+'000000'+str(counter)+'.png', subset.astype(np.uint8),  compression=0, check_contrast=False)
-            elif counter<100:
-                imsave('images/'+prefix+'00000'+str(counter)+'.png', subset.astype(np.uint8),  compression=0, check_contrast=False)
-            else:
-                imsave('images/'+prefix+'0000'+str(counter)+'.png', subset.astype(np.uint8),  compression=0, check_contrast=False)
 
-            del subset
+            if np.max(orig)>0:
+                # print((i,j))
+                # print(np.max(subset))
+                if counter<10:
+                    imsave('stdev/'+prefix+'000000'+str(counter)+'_nir.png', subset.astype(np.uint8), compression=0, check_contrast=False)
+                elif counter<100:
+                    imsave('stdev/'+prefix+'00000'+str(counter)+'_nir.png', subset.astype(np.uint8),  compression=0, check_contrast=False)
+                else:
+                    imsave('stdev/'+prefix+'0000'+str(counter)+'_nir.png', subset.astype(np.uint8),  compression=0, check_contrast=False)
 
-            counter +=1
+                del subset
+
+                with rasterio.open(rgb) as src: #rgb
+                    #print(src.profile)
+                    subset = src.read(window=window)
+
+                subset = np.squeeze(subset).T
+                if counter<10:
+                    imsave('images/'+prefix+'000000'+str(counter)+'.png', subset.astype(np.uint8),  compression=0, check_contrast=False)
+                elif counter<100:
+                    imsave('images/'+prefix+'00000'+str(counter)+'.png', subset.astype(np.uint8),  compression=0, check_contrast=False)
+                else:
+                    imsave('images/'+prefix+'0000'+str(counter)+'.png', subset.astype(np.uint8),  compression=0, check_contrast=False)
+
+                del subset
+
+                with rasterio.open(dem) as src: #dem
+                    #print(src.profile)
+                    d = src.read(window=window)
+                    d[d==src.profile['nodata']] = 0
+
+                d = np.squeeze(d).T
+                if counter<10:
+                    imsave('dems/'+prefix+'000000'+str(counter)+'_nir.png', d.astype(np.uint8),  compression=0, check_contrast=False)
+                elif counter<100:
+                    imsave('dems/'+prefix+'00000'+str(counter)+'_nir.png', d.astype(np.uint8),  compression=0, check_contrast=False)
+                else:
+                    imsave('dems/'+prefix+'0000'+str(counter)+'_nir.png', d.astype(np.uint8),  compression=0, check_contrast=False)
+
+                #del subset
+
+
+                with rasterio.open(mask) as src: #mask
+                    #print(src.profile)
+                    subset = src.read(window=window)
+                    subset[subset==src.profile['nodata']] = 0
+                subset = np.squeeze(subset).T
+
+                subset[(subset==0) & (d!=0) ]=2 # third class = bad
+
+                if counter<10:
+                    imsave('masks/'+prefix+'000000'+str(counter)+'_mask.png', subset.astype(np.uint8)+1,  compression=0, check_contrast=False)
+                elif counter<100:
+                    imsave('masks/'+prefix+'00000'+str(counter)+'_mask.png', subset.astype(np.uint8)+1,  compression=0, check_contrast=False)
+                else:
+                    imsave('masks/'+prefix+'0000'+str(counter)+'_mask.png', subset.astype(np.uint8)+1,  compression=0, check_contrast=False)
+
+                del subset
+
+
+                counter +=1

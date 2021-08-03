@@ -2,6 +2,15 @@
 
 Written by Daniel Buscombe (USGS-PCMSC and Marda Science LLC) and Andy Ritchie (USGS-PCMSC)
 
+> version 1 - April 19, 2021
+
+Initial version did not use overlap, not Otsu. Implemented a median filter with large radus (21 px) by default.
+
+> version 2 - August 2nd, 2021
+
+Optional overlap, Otsu threshold, median filter. Improved implementation. 
+
+
 Input: DEM raster in COG (cloud-optimized geotiff) format. This DEM has messy noise you wish to automatically identify and clean.
 
 Outputs:
@@ -22,7 +31,6 @@ The program uses a deep neural network trained to identify noise in DEMs, to ide
 
 4. Each band of the model output stack (one-hot encoded output probabilities) is median filtered to remove edge artifacts and spatially filter confidence estimates
 
-5. The confidence of each model prediction is the standard deviation of values in the output stack (one-hot encoded output probabilities)
 
 
 ## Install the conda env
@@ -52,7 +60,6 @@ What it does:
 4. The masks and confidence chunks are compiled into mask and confidence rasters the same size as the input dem
 5. The mask raster is used to mask the dem and the masked dem is written to file
 6. The mask raster is written to file
-7. The confidence raster is written to file
 
 It can take several minutes for this process to complete, and very large rasters require large amounts of RAM
 
@@ -63,11 +70,6 @@ USE_GPU = True
 ```
 if `False`, CPU is used for inference
 
-```
-CALC_CONF = False
-```
-
-If `True`, a confidence raster will be computed
 
 ## Contents of this repository
 
@@ -109,3 +111,11 @@ If `True`, a confidence raster will be computed
 * some other minor improvements to mask_dem.py, added 'make_models.py', added segmentation zoo config files and 'chunk_dems.py' which is the script to use to create model training data for use with segmentation zoo
 * adapted and test on 1, 3, and 4-band inputs/models, however currently all models except dem-only give bad predictions
 * 3-class now so removed Otsu threshold
+
+### 8/2/21: AR + DB
+* back to overlap, but a different more efficent implementation
+* have temporarily removed the confidence raster
+* added switches to control threshold behaviour (o.5 or otsu)
+* added switch for median filter (defailt - no median filter)
+* tested with 25% overlap, no otsu, no median filter = worked well on Florence data
+* 1=good data, 0=no/bad data
